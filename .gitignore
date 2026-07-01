@@ -1,1 +1,6 @@
 books/
+
+# Generated SQLite database(s)
+data/*.db
+__pycache__/
+*.pyc
