@@ -1,1 +1,11 @@
-books/
+node_modules/
+dist/
+data/
+uploads/
+uploads-e2e/
+*.db
+*.db-wal
+*.db-shm
+test-results/
+playwright-report/
+.vite/
