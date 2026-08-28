@@ -1,11 +1,12 @@
-// PLACEHOLDER — owned by agent S1 (server-auth-users). Replace the bodies;
-// keep these exported signatures EXACTLY (other agents compile against them).
-// bcryptjs sync API, cost 10.
+// Password hashing — bcryptjs sync API, cost 10 (docs/SPEC.md §8).
+import { compareSync, hashSync } from 'bcryptjs'
 
-export function hashPassword(_password: string): string {
-  throw new Error('not implemented')
+const BCRYPT_COST = 10
+
+export function hashPassword(password: string): string {
+  return hashSync(password, BCRYPT_COST)
 }
 
-export function verifyPassword(_password: string, _hash: string): boolean {
-  throw new Error('not implemented')
+export function verifyPassword(password: string, hash: string): boolean {
+  return compareSync(password, hash)
 }
