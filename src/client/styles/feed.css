@@ -20,7 +20,7 @@
 
 @media (max-width: 899px) {
   .feed-scopes {
-    top: 49px; /* under the mobile topbar */
+    top: calc(49px + env(safe-area-inset-top)); /* under the mobile topbar */
   }
 }
 

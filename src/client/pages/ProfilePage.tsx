@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ProfileResponse, ProfileStats, UserSearchItem, WorkoutCard } from '../../shared/types'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, assetUrl } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatVolume } from '../lib/format'
 import Avatar from '../components/Avatar'
@@ -170,7 +170,7 @@ export default function ProfilePage() {
         <div className="pf-grid">
           {items.map((w) => (
             <Link key={w.id} to={`/s/${w.id}`} className="pf-cell">
-              {w.media.length > 0 ? <img src={w.media[0].url} alt="" loading="lazy" /> : <SessionCard workout={w} compact />}
+              {w.media.length > 0 ? <img src={assetUrl(w.media[0].url)} alt="" loading="lazy" /> : <SessionCard workout={w} compact />}
             </Link>
           ))}
         </div>

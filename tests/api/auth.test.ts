@@ -49,6 +49,41 @@ describe('auth', () => {
     await request(world.app).get('/api/feed').expect(401)
   })
 
+  it('supports bearer-token auth for the native app shell', async () => {
+    const reg = await request(world.app)
+      .post('/api/auth/register')
+      .send({ username: 'mobile', password: 'password1' })
+    expect(reg.status).toBe(201)
+    const token = reg.body.token as string
+    expect(token).toBeTruthy()
+
+    // No cookie jar — the bearer header alone authenticates.
+    const me = await request(world.app).get('/api/auth/me').set('Authorization', `Bearer ${token}`)
+    expect(me.status).toBe(200)
+    expect(me.body.user.username).toBe('mobile')
+
+    // Cross-origin app-shell requests pass CORS + CSRF with the bearer token.
+    const create = await request(world.app)
+      .post('/api/workouts')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Origin', 'capacitor://localhost')
+      .send({ title: 'from ios' })
+    expect(create.status).toBe(201)
+
+    await request(world.app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`).expect(204)
+    await request(world.app).get('/api/auth/me').set('Authorization', `Bearer ${token}`).expect(401)
+  })
+
+  it('answers preflight for allowed app-shell origins', async () => {
+    const res = await request(world.app)
+      .options('/api/auth/login')
+      .set('Origin', 'capacitor://localhost')
+      .set('Access-Control-Request-Method', 'POST')
+    expect(res.status).toBe(204)
+    expect(res.headers['access-control-allow-origin']).toBe('capacitor://localhost')
+    expect(res.headers['access-control-allow-headers']).toContain('Authorization')
+  })
+
   it('returns JSON 404 (not HTML) for unknown /api paths', async () => {
     const agent = await registerAgent(world.app, 'carol')
     const res = await agent.get('/api/definitely-not-a-thing')

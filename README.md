@@ -29,6 +29,14 @@ npm test           # API integration tests (vitest + supertest, in-memory SQLite
 npm run e2e        # Playwright smoke test against the built app
 ```
 
+## iOS app
+
+The repo includes a Capacitor iOS shell (`ios/`) that wraps the built SPA and
+talks to a hosted Chalk API — ready to open in Xcode, sign, and submit to the
+App Store (account deletion, safe areas, icon/splash included). See
+[docs/IOS.md](docs/IOS.md) for the full path from `npm run ios:sync` to
+TestFlight.
+
 ## Stack
 
 Single Node 22 process: Express 4 + better-sqlite3 (WAL, one file under `data/`),

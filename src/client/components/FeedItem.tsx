@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { WorkoutCard } from '../../shared/types'
-import { api } from '../lib/api'
+import { api, assetUrl } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatRelativeTime, formatSetLine } from '../lib/format'
 import Avatar from './Avatar'
@@ -61,7 +61,7 @@ export default function FeedItem({ workout, onChange }: FeedItemProps) {
         {workout.media.length > 0 ? (
           <div className="feed-photos">
             {workout.media.map((m) => (
-              <img key={m.id} src={m.url} alt="" loading="lazy" className="feed-photo" />
+              <img key={m.id} src={assetUrl(m.url)} alt="" loading="lazy" className="feed-photo" />
             ))}
           </div>
         ) : (

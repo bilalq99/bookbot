@@ -74,7 +74,7 @@
 
 @media (max-width: 899px) {
   .log-header {
-    top: 49px;
+    top: calc(49px + env(safe-area-inset-top));
   }
 }
 
@@ -332,6 +332,7 @@
   gap: var(--sp-2);
   align-items: center;
   padding: var(--sp-3) var(--sp-4);
+  padding-top: calc(var(--sp-3) + env(safe-area-inset-top));
 }
 
 .log-picker-close {

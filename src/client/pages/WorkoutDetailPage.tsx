@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { UserSearchItem, WorkoutDetail } from '../../shared/types'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, assetUrl } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import {
   formatRelativeTime,
@@ -110,7 +110,7 @@ export default function WorkoutDetailPage() {
         {workout.media.length > 0 ? (
           <div className="feed-photos">
             {workout.media.map((m) => (
-              <img key={m.id} src={m.url} alt="" className="feed-photo" />
+              <img key={m.id} src={assetUrl(m.url)} alt="" className="feed-photo" />
             ))}
           </div>
         ) : (

@@ -34,11 +34,52 @@ export class ApiError extends Error {
   }
 }
 
+/** Where the API lives. Empty (default) = same origin, i.e. the web app served
+ * by the Express server. The Capacitor iOS shell bakes in a remote server via
+ * VITE_API_BASE at build time. */
+export const API_BASE: string =
+  (import.meta.env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ?? ''
+
+/** Absolute URL for a server-relative asset path like "/uploads/x.jpg". */
+export function assetUrl(path: string): string {
+  return path.startsWith('/') ? `${API_BASE}${path}` : path
+}
+
+// Bearer token for the native shell, where cross-origin cookies are unreliable.
+// The browser SPA is same-origin and keeps using the httpOnly cookie; storing
+// the token as well is harmless there.
+const TOKEN_KEY = 'chalk.token'
+
+function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: 'same-origin',
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...authHeaders(),
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (res.status === 204) return undefined as T
@@ -69,14 +110,30 @@ const qs = (params: Record<string, string | number | undefined>): string => {
 // ---------------------------------------------------------------- auth
 
 export const api = {
-  register: (input: { username: string; password: string; displayName?: string; unitPreference?: Unit }) =>
-    request<{ user: UserSelf }>('POST', '/api/auth/register', input),
-  login: (username: string, password: string) =>
-    request<{ user: UserSelf }>('POST', '/api/auth/login', { username, password }),
-  logout: () => request<void>('POST', '/api/auth/logout'),
+  register: async (input: { username: string; password: string; displayName?: string; unitPreference?: Unit }) => {
+    const r = await request<{ user: UserSelf; token?: string }>('POST', '/api/auth/register', input)
+    setToken(r.token ?? null)
+    return r
+  },
+  login: async (username: string, password: string) => {
+    const r = await request<{ user: UserSelf; token?: string }>('POST', '/api/auth/login', { username, password })
+    setToken(r.token ?? null)
+    return r
+  },
+  logout: async () => {
+    try {
+      await request<void>('POST', '/api/auth/logout')
+    } finally {
+      setToken(null)
+    }
+  },
   me: () => request<{ user: UserSelf }>('GET', '/api/auth/me'),
   patchMe: (input: { displayName?: string; bio?: string; unitPreference?: Unit }) =>
     request<{ user: UserSelf }>('PATCH', '/api/users/me', input),
+  deleteAccount: async (password: string) => {
+    await request<void>('DELETE', '/api/users/me', { password })
+    setToken(null)
+  },
 
   // -------------------------------------------------------------- exercises
   exercises: (q?: string, muscleGroup?: string) =>
@@ -133,7 +190,12 @@ export const api = {
   uploadMedia: async (file: File): Promise<MediaOut> => {
     const form = new FormData()
     form.append('file', file)
-    const res = await fetch('/api/media', { method: 'POST', credentials: 'same-origin', body: form })
+    const res = await fetch(`${API_BASE}/api/media`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: authHeaders(),
+      body: form,
+    })
     if (!res.ok) {
       let code = 'internal'
       let message = `Upload failed (${res.status})`

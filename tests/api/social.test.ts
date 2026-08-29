@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import request from 'supertest'
 import { exerciseId, makeApp, publishSimple, registerAgent, type Agent, type TestWorld } from './helpers'
 
 describe('feed, follows, likes, comments, notifications', () => {
@@ -115,6 +116,29 @@ describe('feed, follows, likes, comments, notifications', () => {
     const draft = await a.post('/api/workouts').send({ title: 'wip' })
     await b.post(`/api/workouts/${draft.body.workout.id}/like`).expect(404)
     await b.post(`/api/workouts/${draft.body.workout.id}/comments`).send({ body: 'hi' }).expect(404)
+  })
+
+  it('account deletion requires the password, cascades content, and fixes counters', async () => {
+    await b.post('/api/users/author/follow')
+    await b.post(`/api/workouts/${workoutId}/like`)
+    await b.post(`/api/workouts/${workoutId}/comments`).send({ body: 'nice' })
+
+    await b.delete('/api/users/me').send({ password: 'wrong-password' }).expect(401)
+    await b.delete('/api/users/me').send({ password: 'password1' }).expect(204)
+
+    // The account is gone and can no longer log in.
+    await b.get('/api/auth/me').expect(401)
+    const login = await request(world.app)
+      .post('/api/auth/login')
+      .send({ username: 'viewer', password: 'password1' })
+    expect(login.status).toBe(401)
+
+    // The author's counters and workout stats no longer reflect the deleted user.
+    const profile = await a.get('/api/users/author')
+    expect(profile.body.user.followerCount).toBe(0)
+    const detail = await a.get(`/api/workouts/${workoutId}`)
+    expect(detail.body.workout.likeCount).toBe(0)
+    expect(detail.body.workout.commentCount).toBe(0)
   })
 
   it('user search ranks username prefix first; suggested excludes followed', async () => {

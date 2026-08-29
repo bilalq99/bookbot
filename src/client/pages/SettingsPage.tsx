@@ -13,6 +13,25 @@ export default function SettingsPage() {
   const [unit, setUnit] = useState<Unit>(me.unitPreference)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const deleteAccount = async () => {
+    if (!window.confirm('Delete your account and every session, PR, and photo? This cannot be undone.')) return
+    setDeleteBusy(true)
+    setDeleteError('')
+    try {
+      await api.deleteAccount(deletePassword)
+      setUser(null)
+      navigate('/register', { replace: true })
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : 'Could not delete the account — try again')
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -85,6 +104,44 @@ export default function SettingsPage() {
       >
         Log out
       </button>
+
+      <div className="card auth-settings auth-danger">
+        <h2 className="auth-danger-title">Danger zone</h2>
+        {deleting ? (
+          <>
+            <p className="muted auth-danger-copy">
+              Deleting your account permanently removes your sessions, records, photos, comments, and follows.
+            </p>
+            <label className="field">
+              <span className="label">Confirm password</span>
+              <input
+                className="input"
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </label>
+            {deleteError && <p className="auth-error">{deleteError}</p>}
+            <div className="auth-danger-actions">
+              <button
+                className="btn btn-danger"
+                onClick={() => void deleteAccount()}
+                disabled={deleteBusy || deletePassword.length === 0}
+              >
+                {deleteBusy ? 'Deleting…' : 'Delete my account'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setDeleting(false)} disabled={deleteBusy}>
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <button className="btn btn-danger" onClick={() => setDeleting(true)}>
+            Delete account…
+          </button>
+        )}
+      </div>
     </div>
   )
 }

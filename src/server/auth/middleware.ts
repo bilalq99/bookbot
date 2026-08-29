@@ -36,6 +36,17 @@ function unauthorized(res: Response): void {
   res.status(401).json({ error: { code: 'unauthorized', message: 'Authentication required' } })
 }
 
+/** Raw session token from the sid cookie or an Authorization: Bearer header
+ * (the native iOS shell authenticates with the bearer form). */
+export function extractToken(req: { cookies?: unknown; headers: { authorization?: string } }): string | null {
+  const cookies = req.cookies as Record<string, string> | undefined
+  const fromCookie = cookies?.[SESSION_COOKIE]
+  if (fromCookie) return fromCookie
+  const auth = req.headers.authorization
+  if (auth && auth.startsWith('Bearer ')) return auth.slice('Bearer '.length).trim() || null
+  return null
+}
+
 export function requireAuth(db: AppDb): RequestHandler {
   const selectSession = db.prepare(`
     SELECT s.expires_at        AS expiresAt,
@@ -55,8 +66,7 @@ export function requireAuth(db: AppDb): RequestHandler {
   const deleteSession = db.prepare('DELETE FROM auth_sessions WHERE token_hash = ?')
 
   return (req, res, next) => {
-    const cookies = req.cookies as Record<string, string> | undefined
-    const token = cookies?.[SESSION_COOKIE]
+    const token = extractToken(req)
     if (!token) return unauthorized(res)
     const tokenHash = hashToken(token)
     const row = selectSession.get(tokenHash) as SessionRow | undefined

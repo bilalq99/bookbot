@@ -21,11 +21,34 @@ export function createApp(db: AppDb): express.Express {
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())
 
-  // CSRF guard: non-GET /api requests with an Origin header must be same-origin.
+  // CORS for the native app shells (config.corsOrigins). The browser SPA is
+  // same-origin and never triggers this.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin
+    if (origin && config.corsOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Vary', 'Origin')
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        res.setHeader('Access-Control-Max-Age', '600')
+        res.status(204).end()
+        return
+      }
+    }
+    next()
+  })
+
+  // CSRF guard: non-GET /api requests with an Origin header must be same-origin
+  // or an allowed app-shell origin. Bearer-token requests are immune to CSRF
+  // (the token never rides along automatically), so they skip the check.
   app.use('/api', (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD') return next()
+    if (typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')) return next()
     const origin = req.headers.origin
     if (!origin) return next()
+    if (config.corsOrigins.has(origin)) return next()
     try {
       if (new URL(origin).host === req.headers.host) return next()
     } catch {

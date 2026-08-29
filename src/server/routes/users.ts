@@ -4,6 +4,8 @@
 //   GET /:username/followers  GET /:username/following
 //   POST /:username/follow  DELETE /:username/follow
 // Literal routes are registered BEFORE /:username so "search" is never a username.
+import fs from 'node:fs'
+import path from 'node:path'
 import { Router } from 'express'
 import type { Request, Response } from 'express'
 import type { AppDb } from '../db/client'
@@ -26,6 +28,8 @@ import { computeStreakWeeks, isoWeekStartUtc } from '../../shared/formulas'
 import { patchMeSchema } from '../../shared/validation'
 import { ApiError, asyncHandler, escapeLike, makeCursor, notFound, parseCursor, parseLimit, validate } from '../lib/http'
 import { requireAuth } from '../auth/middleware'
+import { verifyPassword } from '../auth/password'
+import { config } from '../config'
 import { getWorkoutCards } from '../services/cards'
 import { notifyFollow } from '../services/notify'
 
@@ -269,6 +273,60 @@ export default function usersRoutes(db: AppDb): Router {
       }
       const row = selectUserById.get(req.user!.id) as UserRow
       res.json({ user: toUserSelf(row) })
+    }),
+  )
+
+  // Account deletion (App Store guideline 5.1.1(v)). Password-confirmed; removes
+  // the user row (FKs cascade sessions/workouts/sets/follows/likes/comments/
+  // notifications/media rows/PRs/custom exercises), fixes the denormalized
+  // counters that cascades cannot maintain, and unlinks uploaded files.
+  router.delete(
+    '/me',
+    asyncHandler((req, res) => {
+      const userId = req.user!.id
+      const password = typeof (req.body as { password?: unknown })?.password === 'string'
+        ? (req.body as { password: string }).password
+        : ''
+      const row = db
+        .prepare<unknown[], { password_hash: string }>('SELECT password_hash FROM users WHERE id = ?')
+        .get(userId)
+      if (!row || !verifyPassword(password, row.password_hash)) {
+        throw new ApiError(401, 'invalid_credentials', 'Password is incorrect')
+      }
+      const filePaths = (
+        db.prepare<unknown[], { file_path: string }>('SELECT file_path FROM media WHERE user_id = ?').all(userId)
+      ).map((m) => m.file_path)
+      db.transaction(() => {
+        // Fix counters on OTHER rows before the cascades remove the join rows.
+        db.prepare(
+          `UPDATE users SET follower_count = follower_count - 1
+           WHERE id IN (SELECT followee_id FROM follows WHERE follower_id = ?)`,
+        ).run(userId)
+        db.prepare(
+          `UPDATE users SET following_count = following_count - 1
+           WHERE id IN (SELECT follower_id FROM follows WHERE followee_id = ?)`,
+        ).run(userId)
+        db.prepare(
+          `UPDATE workouts SET like_count = like_count - 1
+           WHERE id IN (SELECT workout_id FROM likes WHERE user_id = ?)`,
+        ).run(userId)
+        db.prepare(
+          `UPDATE workouts SET comment_count = comment_count - (
+             SELECT COUNT(*) FROM comments c WHERE c.user_id = ? AND c.workout_id = workouts.id
+           )
+           WHERE id IN (SELECT DISTINCT workout_id FROM comments WHERE user_id = ?)`,
+        ).run(userId, userId)
+        db.prepare('DELETE FROM users WHERE id = ?').run(userId)
+      })()
+      for (const filePath of filePaths) {
+        try {
+          fs.unlinkSync(path.join(config.uploadsDir, filePath))
+        } catch {
+          /* best-effort */
+        }
+      }
+      res.clearCookie('sid', { httpOnly: true, sameSite: 'lax', path: '/' })
+      res.status(204).end()
     }),
   )
 

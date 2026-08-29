@@ -8,7 +8,7 @@ import { loginSchema, registerSchema } from '../../shared/validation'
 import { ApiError, asyncHandler, validate } from '../lib/http'
 import { hashPassword, verifyPassword } from '../auth/password'
 import { SESSION_COOKIE, SESSION_TTL_MS, createSession, destroySession } from '../auth/session'
-import { requireAuth } from '../auth/middleware'
+import { extractToken, requireAuth } from '../auth/middleware'
 
 // SPEC §8: sid=<token>; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000 (no Secure).
 const COOKIE_OPTS: CookieOptions = {
@@ -96,7 +96,9 @@ export default function authRoutes(db: AppDb): Router {
         workoutCount: 0,
         createdAt: now,
       }
-      res.status(201).json({ user })
+      // The token is returned for the native app shell (bearer auth);
+      // the browser SPA relies on the httpOnly cookie and ignores it.
+      res.status(201).json({ user, token })
     }),
   )
 
@@ -109,7 +111,7 @@ export default function authRoutes(db: AppDb): Router {
       if (!row || !ok) throw new ApiError(401, 'invalid_credentials', 'Invalid username or password')
       const { token } = createSession(db, row.id)
       res.cookie(SESSION_COOKIE, token, COOKIE_OPTS)
-      res.json({ user: toUserSelf(row) })
+      res.json({ user: toUserSelf(row), token })
     }),
   )
 
@@ -117,8 +119,7 @@ export default function authRoutes(db: AppDb): Router {
     '/logout',
     requireAuth(db),
     asyncHandler((req, res) => {
-      const cookies = req.cookies as Record<string, string> | undefined
-      const token = cookies?.[SESSION_COOKIE]
+      const token = extractToken(req)
       if (token) destroySession(db, token)
       res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: 'lax', path: '/' })
       res.status(204).end()
