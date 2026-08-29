@@ -1,9 +1,7 @@
-// PLACEHOLDER — owned by agent C1 (client-shell). Replace the implementation;
-// keep AuthProvider/useAuth and the AuthState shape EXACTLY (App.tsx and every
-// page compiles against them). On mount: api.me() -> user or null (loading until
-// resolved). login/register set user; logout clears it.
-import { createContext, useContext, type ReactNode } from 'react'
+// Auth context: session state via api.me() on mount; login/register/logout.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Unit, UserSelf } from '../../shared/types'
+import { api } from './api'
 
 export interface AuthState {
   user: UserSelf | null
@@ -17,9 +15,43 @@ export interface AuthState {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  throw new Error('not implemented')
-  // eslint-disable-next-line no-unreachable
-  return <AuthContext.Provider value={null as never}>{children}</AuthContext.Provider>
+  const [user, setUser] = useState<UserSelf | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api
+      .me()
+      .then((r) => setUser(r.user))
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const login = useCallback(async (username: string, password: string) => {
+    const r = await api.login(username, password)
+    setUser(r.user)
+  }, [])
+
+  const register = useCallback(
+    async (input: { username: string; password: string; displayName?: string; unitPreference?: Unit }) => {
+      const r = await api.register(input)
+      setUser(r.user)
+    },
+    [],
+  )
+
+  const logout = useCallback(async () => {
+    try {
+      await api.logout()
+    } finally {
+      setUser(null)
+    }
+  }, [])
+
+  const value = useMemo<AuthState>(
+    () => ({ user, loading, login, register, logout, setUser }),
+    [user, loading, login, register, logout],
+  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth(): AuthState {
