@@ -101,10 +101,17 @@ export function dominantGradient(exercises: WorkoutExerciseOut[]): GradientKey {
   }
   let best: GradientKey = 'full'
   let bestN = 0
+  let tied = false
   for (const [k, n] of counts) {
-    if (n > bestN) { best = k; bestN = n }
+    if (n > bestN) {
+      best = k
+      bestN = n
+      tied = false
+    } else if (n === bestN && bestN > 0 && k !== best) {
+      tied = true
+    }
   }
-  return best
+  return tied ? 'full' : best
 }
 
 export interface Headline {

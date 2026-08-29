@@ -58,6 +58,11 @@ export function makeCursor(ts: number, id: number): string {
   return `${ts}.${id}`
 }
 
+/** Escape %/_ so user input only ever matches literally inside LIKE ... ESCAPE '\' patterns. */
+export function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
 export function parseLimit(raw: unknown, def: number, max: number): number {
   const n = Number(raw)
   if (!Number.isInteger(n) || n < 1) return def

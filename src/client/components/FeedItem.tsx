@@ -22,24 +22,17 @@ export default function FeedItem({ workout, onChange }: FeedItemProps) {
   const [burst, setBurst] = useState(0)
   const busy = useRef(false)
 
-  const setLiked = (liked: boolean) => {
-    onChange?.({
-      ...workout,
-      viewerLiked: liked,
-      likeCount: workout.likeCount + (liked ? 1 : -1),
-    })
-  }
-
   const toggleBump = (forceLike = false) => {
     if (busy.current) return
     if (forceLike && workout.viewerLiked) return
+    const original = workout
     const liking = forceLike || !workout.viewerLiked
     busy.current = true
-    setLiked(liking)
+    onChange?.({ ...workout, viewerLiked: liking, likeCount: workout.likeCount + (liking ? 1 : -1) })
     if (liking) setBurst((b) => b + 1)
     const call = liking ? api.like(workout.id) : api.unlike(workout.id)
     call
-      .catch(() => setLiked(!liking))
+      .catch(() => onChange?.(original))
       .finally(() => {
         busy.current = false
       })

@@ -6,7 +6,7 @@ import type { AppDb } from '../db/client'
 import type { Discipline, Equipment, Exercise, MetricType, MuscleGroup, PlLift } from '../../shared/types'
 import { createExerciseSchema, muscleGroupSchema } from '../../shared/validation'
 import { requireAuth } from '../auth/middleware'
-import { ApiError, asyncHandler, parseLimit, validate } from '../lib/http'
+import { ApiError, asyncHandler, escapeLike, parseLimit, validate } from '../lib/http'
 
 interface ExerciseRow {
   id: number
@@ -35,8 +35,6 @@ function mapExercise(row: ExerciseRow): Exercise {
     isCustom: row.created_by !== null,
   }
 }
-
-const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 
 export default function exercisesRoutes(db: AppDb): Router {
   const router = Router()

@@ -2,7 +2,7 @@
 // e1RM) and every PR grouped by exercise. docs/SPEC.md §10.
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { PrOut, RecordType } from '../../shared/types'
+import type { PlLift, PrOut, RecordType } from '../../shared/types'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatDate, formatSeconds, weightNumber } from '../lib/format'
@@ -43,18 +43,18 @@ export default function RecordsPage() {
 
   const marquee = useMemo(() => {
     if (!prs) return null
-    const bestBySlug = (slugs: string[], type: RecordType): number | null => {
-      const vals = prs
-        .filter((p) => p.recordType === type && p.exercise.slug !== null && slugs.includes(p.exercise.slug))
-        .map((p) => p.value)
+    // The library marks comp lifts with exercises.pl_lift ('S'/'B'/'D') — group
+    // on that rather than duplicating slug lists here.
+    const bestByLift = (lift: PlLift, type: RecordType): number | null => {
+      const vals = prs.filter((p) => p.recordType === type && p.exercise.plLift === lift).map((p) => p.value)
       return vals.length > 0 ? Math.max(...vals) : null
     }
-    const squat = bestBySlug(['back-squat'], 'max_weight')
-    const bench = bestBySlug(['bench-press'], 'max_weight')
-    const dead = bestBySlug(['deadlift', 'sumo-deadlift'], 'max_weight')
-    const squatE = bestBySlug(['back-squat'], 'max_est_1rm')
-    const benchE = bestBySlug(['bench-press'], 'max_est_1rm')
-    const deadE = bestBySlug(['deadlift', 'sumo-deadlift'], 'max_est_1rm')
+    const squat = bestByLift('S', 'max_weight')
+    const bench = bestByLift('B', 'max_weight')
+    const dead = bestByLift('D', 'max_weight')
+    const squatE = bestByLift('S', 'max_est_1rm')
+    const benchE = bestByLift('B', 'max_est_1rm')
+    const deadE = bestByLift('D', 'max_est_1rm')
     return {
       squat,
       bench,

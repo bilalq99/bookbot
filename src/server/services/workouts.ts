@@ -201,6 +201,14 @@ export function updateWorkout(
   const data = validate(workoutInSchema, input)
   const workout = loadOwned(db, userId, workoutId)
   const resolved = data.exercises !== undefined ? resolveExercises(db, userId, data.exercises) : null
+  // A published session must keep the invariant publish enforces: >= 1 working set.
+  if (
+    resolved !== null &&
+    workout.status === 'published' &&
+    !resolved.some((ex) => ex.sets.some((s) => (s.setType ?? 'normal') !== 'warmup'))
+  ) {
+    throw new ApiError(400, 'validation_error', 'A published session must keep at least one working set')
+  }
   db.transaction(() => {
     db.prepare(
       `UPDATE workouts SET
@@ -293,8 +301,10 @@ export function deleteWorkout(db: AppDb, userId: number, workoutId: number): voi
     db.prepare(`DELETE FROM workouts WHERE id = ?`).run(workoutId)
     if (workout.status === 'published') {
       db.prepare(`UPDATE users SET workout_count = workout_count - 1 WHERE id = ?`).run(userId)
+      // Drafts never contributed to PR history, so recomputing after a draft
+      // delete would only erase historical is_pr badges publish preserved.
+      recomputePRs(db, userId, exerciseIds)
     }
-    recomputePRs(db, userId, exerciseIds)
   })()
   for (const filePath of filePaths) {
     try {

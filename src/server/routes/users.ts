@@ -24,7 +24,7 @@ import type {
 } from '../../shared/types'
 import { computeStreakWeeks, isoWeekStartUtc } from '../../shared/formulas'
 import { patchMeSchema } from '../../shared/validation'
-import { ApiError, asyncHandler, makeCursor, notFound, parseCursor, parseLimit, validate } from '../lib/http'
+import { ApiError, asyncHandler, escapeLike, makeCursor, notFound, parseCursor, parseLimit, validate } from '../lib/http'
 import { requireAuth } from '../auth/middleware'
 import { getWorkoutCards } from '../services/cards'
 import { notifyFollow } from '../services/notify'
@@ -83,11 +83,6 @@ function toExercise(row: ExerciseRow): Exercise {
     tags: JSON.parse(row.tags) as Discipline[],
     isCustom: row.created_by !== null,
   }
-}
-
-/** Escape %/_ so user input only ever matches literally inside LIKE patterns. */
-function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
 }
 
 export default function usersRoutes(db: AppDb): Router {

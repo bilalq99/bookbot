@@ -87,6 +87,31 @@ describe('workouts and PRs', () => {
     expect(maxW.value).toBe(100)
   })
 
+  it('deleting a draft leaves published PR badges untouched', async () => {
+    const pub = await publishSimple(a, bench, [{ weightKg: 100, reps: 5 }])
+    const draft = await a.post('/api/workouts').send({
+      exercises: [{ exerciseId: bench, sets: [{ weightKg: 60, reps: 5 }] }],
+    })
+    await a.delete(`/api/workouts/${draft.body.workout.id}`).expect(204)
+    const detail = await a.get(`/api/workouts/${pub.workout.id}`)
+    expect(detail.body.workout.exercises[0].sets[0].isPr).toBe(true)
+    expect(detail.body.workout.prCount).toBe(2)
+  })
+
+  it('PATCH cannot strip a published workout below one working set', async () => {
+    const pub = await publishSimple(a, bench, [{ weightKg: 100, reps: 5 }])
+    await a.patch(`/api/workouts/${pub.workout.id}`).send({ exercises: [] }).expect(400)
+    await a
+      .patch(`/api/workouts/${pub.workout.id}`)
+      .send({ exercises: [{ exerciseId: bench, sets: [{ setType: 'warmup', weightKg: 60, reps: 5 }] }] })
+      .expect(400)
+    // draft workouts may still be emptied freely
+    const draft = await a.post('/api/workouts').send({
+      exercises: [{ exerciseId: bench, sets: [{ weightKg: 60, reps: 5 }] }],
+    })
+    await a.patch(`/api/workouts/${draft.body.workout.id}`).send({ exercises: [] }).expect(200)
+  })
+
   it('drafts are invisible to other users (404, not 403)', async () => {
     const created = await a.post('/api/workouts').send({ title: 'secret' })
     const b = await registerAgent(world.app, 'peeker')

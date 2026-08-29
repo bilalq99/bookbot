@@ -27,6 +27,9 @@ interface ActiveSession {
   startedAt: number
   exercises: DraftExercise[]
   uidCounter: number
+  /** The unit the draft's weight values are stored in (the viewer's preference
+   * when they were typed) — resumed drafts convert if the preference changed. */
+  unit: 'kg' | 'lb'
 }
 
 function loadSession(): ActiveSession | null {
@@ -85,6 +88,29 @@ export default function LogWorkoutPage() {
 
   const [session, setSession] = useState<ActiveSession | null>(loadSession)
   const [step, setStep] = useState<'start' | 'active' | 'compose' | 'celebrate'>(session ? 'active' : 'start')
+
+  // A draft written under the other unit preference gets its weights converted
+  // once, so numbers keep meaning what the lifter typed.
+  useEffect(() => {
+    setSession((s) => {
+      if (!s) return s
+      const storedUnit = s.unit ?? unit
+      if (storedUnit === unit) return s.unit ? s : { ...s, unit }
+      const convert = storedUnit === 'kg' ? kgToLb : lbToKg
+      return {
+        ...s,
+        unit,
+        exercises: s.exercises.map((ex) => ({
+          ...ex,
+          sets: ex.sets.map((set) =>
+            set.weightKg !== undefined
+              ? { ...set, weightKg: Math.round(convert(set.weightKg) * 10) / 10 }
+              : set,
+          ),
+        })),
+      }
+    })
+  }, [unit])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [restRun, setRestRun] = useState(0)
   const [showRest, setShowRest] = useState(false)
@@ -93,7 +119,10 @@ export default function LogWorkoutPage() {
   const [prevByExercise, setPrevByExercise] = useState<Map<number, SetIn[]>>(new Map())
   const [notes, setNotes] = useState('')
   const [title, setTitle] = useState('')
-  const [photos, setPhotos] = useState<File[]>([])
+  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
+  const photosRef = useRef(photos)
+  photosRef.current = photos
+  useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.url)), [])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [celebration, setCelebration] = useState<{ id: number; prs: NewPr[] } | null>(null)
@@ -139,7 +168,7 @@ export default function LogWorkoutPage() {
   }, [me.username])
 
   const startEmpty = () => {
-    setSession({ title: '', startedAt: Date.now(), exercises: [], uidCounter: 1 })
+    setSession({ title: '', startedAt: Date.now(), exercises: [], uidCounter: 1, unit })
     setStep('active')
     setPickerOpen(true)
   }
@@ -160,7 +189,7 @@ export default function LogWorkoutPage() {
         uid: uid++,
       })),
     }))
-    setSession({ title: lastWorkout.title, startedAt: Date.now(), exercises, uidCounter: uid })
+    setSession({ title: lastWorkout.title, startedAt: Date.now(), exercises, uidCounter: uid, unit })
     setStep('active')
   }
 
@@ -251,11 +280,12 @@ export default function LogWorkoutPage() {
     setBusy(true)
     try {
       const mediaIds: number[] = []
-      for (const file of photos.slice(0, 4)) {
-        const m = await api.uploadMedia(file)
+      for (const photo of photos.slice(0, 4)) {
+        const m = await api.uploadMedia(photo.file)
         mediaIds.push(m.id)
       }
-      const durationS = Math.max(60, Math.round((Date.now() - session.startedAt) / 1000))
+      // Resumed drafts can be days old — clamp into the server's 1..86400 range.
+      const durationS = Math.min(86400, Math.max(60, Math.round((Date.now() - session.startedAt) / 1000)))
       const created = await api.createWorkout({
         title: title.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -264,7 +294,14 @@ export default function LogWorkoutPage() {
         exercises,
         mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
       })
-      const published = await api.publishWorkout(created.workout.id)
+      let published
+      try {
+        published = await api.publishWorkout(created.workout.id)
+      } catch (err) {
+        // No UI surfaces drafts, so don't strand one — retrying re-creates it.
+        await api.deleteWorkout(created.workout.id).catch(() => {})
+        throw err
+      }
       setSession(null)
       saveSession(null)
       if (published.newPrs.length > 0) {
@@ -374,12 +411,17 @@ export default function LogWorkoutPage() {
         <div className="field">
           <span className="label">Photos ({photos.length}/4)</span>
           <div className="log-photos">
-            {photos.map((f, i) => (
-              <span key={i} className="log-photo">
-                <img src={URL.createObjectURL(f)} alt="" />
+            {photos.map((p, i) => (
+              <span key={p.url} className="log-photo">
+                <img src={p.url} alt="" />
                 <button
                   className="log-photo-x"
-                  onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
+                  onClick={() =>
+                    setPhotos((prev) => {
+                      URL.revokeObjectURL(prev[i].url)
+                      return prev.filter((_, j) => j !== i)
+                    })
+                  }
                   aria-label="Remove photo"
                 >
                   <IconX size={12} />
@@ -400,7 +442,10 @@ export default function LogWorkoutPage() {
             hidden
             onChange={(e) => {
               const files = Array.from(e.target.files ?? [])
-              setPhotos((p) => [...p, ...files].slice(0, 4))
+              setPhotos((p) => [
+                ...p,
+                ...files.slice(0, Math.max(0, 4 - p.length)).map((file) => ({ file, url: URL.createObjectURL(file) })),
+              ])
               e.target.value = ''
             }}
           />
