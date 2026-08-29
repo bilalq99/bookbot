@@ -6,17 +6,25 @@ import type { AppDb } from '../db/client'
 import type { Unit, UserSelf } from '../../shared/types'
 import { loginSchema, registerSchema } from '../../shared/validation'
 import { ApiError, asyncHandler, validate } from '../lib/http'
+import { config } from '../config'
 import { hashPassword, verifyPassword } from '../auth/password'
 import { SESSION_COOKIE, SESSION_TTL_MS, createSession, destroySession } from '../auth/session'
 import { extractToken, requireAuth } from '../auth/middleware'
 
-// SPEC §8: sid=<token>; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000 (no Secure).
+// SPEC §8: sid=<token>; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000.
+// Secure is added when COOKIE_SECURE=1 (HTTPS deployments).
 const COOKIE_OPTS: CookieOptions = {
   httpOnly: true,
   sameSite: 'lax',
   path: '/',
   maxAge: SESSION_TTL_MS,
+  secure: config.secureCookies,
 }
+
+// Brute-force limiter for the two public endpoints: fixed one-minute windows,
+// in-memory (per process; resets on restart — acceptable for this scale).
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX_ATTEMPTS = 10
 
 // Verified against when the username does not exist, so login latency does not
 // reveal which usernames are taken.
@@ -62,6 +70,23 @@ function isUniqueViolation(err: unknown): boolean {
 export default function authRoutes(db: AppDb): Router {
   const router = Router()
 
+  const attempts = new Map<string, { n: number; resetAt: number }>()
+  function checkRate(key: string): void {
+    const now = Date.now()
+    if (attempts.size > 10_000) {
+      for (const [k, v] of attempts) if (v.resetAt <= now) attempts.delete(k)
+    }
+    const cur = attempts.get(key)
+    if (!cur || cur.resetAt <= now) {
+      attempts.set(key, { n: 1, resetAt: now + RATE_WINDOW_MS })
+      return
+    }
+    cur.n += 1
+    if (cur.n > RATE_MAX_ATTEMPTS) {
+      throw new ApiError(429, 'rate_limited', 'Too many attempts — try again in a minute')
+    }
+  }
+
   const selectAuthByUsername = db.prepare('SELECT * FROM users WHERE username = ?')
   const insertUser = db.prepare(`
     INSERT INTO users (username, password_hash, display_name, unit_preference, created_at)
@@ -71,6 +96,7 @@ export default function authRoutes(db: AppDb): Router {
   router.post(
     '/register',
     asyncHandler((req, res) => {
+      checkRate(`reg:${req.ip}`)
       const body = validate(registerSchema, req.body)
       const displayName = body.displayName ?? body.username
       const unitPreference = body.unitPreference ?? 'kg'
@@ -106,6 +132,7 @@ export default function authRoutes(db: AppDb): Router {
     '/login',
     asyncHandler((req, res) => {
       const body = validate(loginSchema, req.body)
+      checkRate(`login:${req.ip}:${body.username}`)
       const row = selectAuthByUsername.get(body.username) as UserAuthRow | undefined
       const ok = verifyPassword(body.password, row ? row.password_hash : DUMMY_HASH)
       if (!row || !ok) throw new ApiError(401, 'invalid_credentials', 'Invalid username or password')

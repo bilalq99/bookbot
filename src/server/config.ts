@@ -7,6 +7,10 @@ export interface Config {
   uploadsDir: string
   /** Origins allowed to call the API cross-origin (the Capacitor iOS shell). */
   corsOrigins: Set<string>
+  /** Set TRUST_PROXY=1 when running behind a reverse proxy / platform edge. */
+  trustProxy: boolean
+  /** Set COOKIE_SECURE=1 when serving over HTTPS (production deployments). */
+  secureCookies: boolean
 }
 
 export const config: Config = {
@@ -19,4 +23,6 @@ export const config: Config = {
       .map((s) => s.trim())
       .filter(Boolean),
   ),
+  trustProxy: process.env.TRUST_PROXY === '1',
+  secureCookies: process.env.COOKIE_SECURE === '1',
 }

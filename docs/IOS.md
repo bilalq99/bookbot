@@ -28,9 +28,15 @@ npm ci && npm run build
 PORT=3000 DB_PATH=/data/chalk.db UPLOADS_DIR=/data/uploads node dist/server/index.js
 ```
 
+Or use the included **Dockerfile** (multi-stage, non-root; data on a `/data`
+volume): `docker build -t chalk . && docker run -p 3000:3000 -v chalk-data:/data chalk`.
+
 Put it behind **HTTPS** (a reverse proxy such as Caddy/nginx, or the platform's
-TLS) — iOS App Transport Security requires it. Optionally run `npm run seed`
-once if you want the demo world in production (you probably don't).
+TLS) — iOS App Transport Security requires it. When deployed that way, set
+`TRUST_PROXY=1` (correct client IPs for the auth rate limiter) and
+`COOKIE_SECURE=1` (Secure session cookies for web visitors). `GET /api/health`
+is an unauthenticated liveness probe for load balancers. Optionally run
+`npm run seed` once if you want the demo world in production (you probably don't).
 
 ## 2. Build the app against your API
 

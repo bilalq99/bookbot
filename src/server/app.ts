@@ -18,8 +18,14 @@ import mediaRoutes from './routes/media'
 export function createApp(db: AppDb): express.Express {
   const app = express()
   app.disable('x-powered-by')
+  if (config.trustProxy) app.set('trust proxy', true)
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())
+
+  // Unauthenticated liveness probe for load balancers / uptime checks.
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true })
+  })
 
   // CORS for the native app shells (config.corsOrigins). The browser SPA is
   // same-origin and never triggers this.

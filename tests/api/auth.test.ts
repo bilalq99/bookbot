@@ -84,6 +84,27 @@ describe('auth', () => {
     expect(res.headers['access-control-allow-headers']).toContain('Authorization')
   })
 
+  it('serves an unauthenticated health check', async () => {
+    const res = await request(world.app).get('/api/health')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+  })
+
+  it('rate-limits repeated failed logins per username', async () => {
+    await registerAgent(world.app, 'target')
+    for (let i = 0; i < 10; i++) {
+      await request(world.app).post('/api/auth/login').send({ username: 'target', password: 'wrong-pass' }).expect(401)
+    }
+    const blocked = await request(world.app)
+      .post('/api/auth/login')
+      .send({ username: 'target', password: 'wrong-pass' })
+    expect(blocked.status).toBe(429)
+    expect(blocked.body.error.code).toBe('rate_limited')
+    // a different username is unaffected
+    await registerAgent(world.app, 'bystander')
+    await request(world.app).post('/api/auth/login').send({ username: 'bystander', password: 'password1' }).expect(200)
+  })
+
   it('returns JSON 404 (not HTML) for unknown /api paths', async () => {
     const agent = await registerAgent(world.app, 'carol')
     const res = await agent.get('/api/definitely-not-a-thing')
