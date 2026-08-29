@@ -104,6 +104,9 @@ export default function RegisterPage() {
         <p className="auth-alt">
           Already lifting here? <Link to="/login">Log in</Link>
         </p>
+        <p className="auth-legal">
+          <Link to="/privacy">Privacy</Link> · <Link to="/support">Support</Link>
+        </p>
       </form>
     </div>
   )

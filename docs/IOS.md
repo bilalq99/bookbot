@@ -71,12 +71,17 @@ Already handled in this repo:
 - [x] Account deletion in-app (guideline 5.1.1(v)) — Settings → Danger zone
 - [x] Camera / photo-library usage descriptions in Info.plist
 - [x] No blanket ATS exceptions, no private APIs, no third-party trackers
+- [x] **Privacy policy & support pages** — the app serves them publicly at
+      `/privacy` and `/support` (linked from login and Settings), so once the
+      API is hosted you have `https://your-domain/privacy` and
+      `https://your-domain/support` to paste into App Store Connect. Before
+      submitting: read the policy text (`src/client/pages/LegalPage.tsx`) to
+      confirm it matches how you actually run the server, and replace the
+      `CONTACT_EMAIL` placeholder at the top with a monitored address.
 
 You still need to:
 
 - [ ] Apple Developer Program membership ($99/yr)
-- [ ] A **privacy policy URL** (App Store Connect requires one; the app stores
-      account data, workouts, and photos)
 - [ ] Fill in the **App Privacy** questionnaire (collected: account info
       [username], user content [workouts, photos, comments]; not used for
       tracking)

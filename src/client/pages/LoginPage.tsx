@@ -61,6 +61,9 @@ export default function LoginPage() {
         <p className="auth-alt">
           New here? <Link to="/register">Create an account</Link>
         </p>
+        <p className="auth-legal">
+          <Link to="/privacy">Privacy</Link> · <Link to="/support">Support</Link>
+        </p>
       </form>
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Unit } from '../../shared/types'
 import { useAuth } from '../lib/auth'
 import { api, ApiError } from '../lib/api'
@@ -104,6 +104,10 @@ export default function SettingsPage() {
       >
         Log out
       </button>
+
+      <p className="auth-legal auth-legal-settings">
+        <Link to="/privacy">Privacy policy</Link> · <Link to="/support">Support</Link>
+      </p>
 
       <div className="card auth-settings auth-danger">
         <h2 className="auth-danger-title">Danger zone</h2>

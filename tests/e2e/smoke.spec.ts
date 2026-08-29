@@ -14,6 +14,13 @@ test('register, log a session, publish, and interact with it', async ({ page }) 
   await page.goto('/')
   await expect(page).toHaveURL(/\/login$/)
 
+  // The public legal pages (App Store privacy/support URLs) render logged-out.
+  await page.getByRole('link', { name: 'Privacy' }).click()
+  await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible()
+  await page.goto('/support')
+  await expect(page.getByRole('heading', { name: 'Support' })).toBeVisible()
+  await page.goto('/login')
+
   // Register a fresh user.
   await page.getByText('Create an account').click()
   await page.locator('input[autocomplete="username"]').fill(USERNAME)

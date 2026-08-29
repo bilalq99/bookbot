@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage'
 import WorkoutDetailPage from './pages/WorkoutDetailPage'
 import NotificationsPage from './pages/NotificationsPage'
 import SettingsPage from './pages/SettingsPage'
+import { PrivacyPage, SupportPage } from './pages/LegalPage'
 
 /** Profiles live at /@username; router segments can't mix a literal prefix with
  * a param, so match /:handle and require the @ ourselves. */
@@ -36,6 +37,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Public — App Store Connect requires reachable privacy/support URLs. */}
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/support" element={<SupportPage />} />
       <Route
         element={
           <RequireAuth>
