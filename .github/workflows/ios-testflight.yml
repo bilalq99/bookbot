@@ -1,0 +1,101 @@
+# Builds the Capacitor iOS app on a hosted macOS runner, signs it with Apple's
+# cloud signing, and uploads it to TestFlight — no Mac needed.
+#
+# One-time setup (details in docs/APPSTORE.md):
+#   1. Create the app record in App Store Connect with your bundle ID.
+#   2. Generate an App Store Connect API key (Team key, App Manager role).
+#   3. Add repo secrets: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID,
+#      ASC_API_KEY (the full contents of the downloaded .p8 file).
+# Then run this workflow from the Actions tab with your hosted API origin.
+name: iOS → TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: "HTTPS origin of the hosted Chalk API (e.g. https://chalk-api.fly.dev)"
+        required: true
+        type: string
+      bundle_id:
+        description: "Bundle identifier registered to your team"
+        required: true
+        default: "com.chalk.lifting"
+        type: string
+
+jobs:
+  build-and-upload:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app and sync the iOS shell
+        env:
+          VITE_API_BASE: ${{ inputs.api_base }}
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "$ASC_API_KEY" > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Archive (cloud-managed signing)
+        env:
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Upload to App Store Connect
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/export-options.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>manageAppVersionAndBuildNumber</key><true/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export-options.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
