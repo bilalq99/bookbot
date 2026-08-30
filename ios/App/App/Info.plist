@@ -68,6 +68,8 @@
 	<false/>
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleLightContent</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Chalk uses the camera so you can add photos to the sessions you post.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

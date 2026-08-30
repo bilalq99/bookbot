@@ -21,7 +21,9 @@ How the pieces differ from the web app:
 ## 1. Host the API
 
 Deploy this repo to any Node 22 host with a **persistent disk** (SQLite file +
-uploads live on disk): a VPS, Fly.io, Railway, Render, etc.
+uploads live on disk): a VPS, Fly.io, Railway, Render, etc. Ready-made configs
+are included — **`fly.toml`** (see its header for the three-command launch) and
+**`render.yaml`** (Render → New → Blueprint).
 
 ```bash
 npm ci && npm run build
@@ -39,6 +41,12 @@ is an unauthenticated liveness probe for load balancers. Optionally run
 `npm run seed` once if you want the demo world in production (you probably don't).
 
 ## 2. Build the app against your API
+
+**No Mac?** The GitHub Actions workflow `.github/workflows/ios-testflight.yml`
+builds, signs, and uploads to TestFlight on a hosted macOS runner — you only
+add four Apple secrets and run it from the Actions tab. Setup steps are in
+`docs/APPSTORE.md` ("Upload path"). The rest of this section is the local-Mac
+alternative.
 
 On a Mac with Xcode 15+ (Capacitor 8 uses Swift Package Manager — no CocoaPods):
 
@@ -79,18 +87,28 @@ Already handled in this repo:
       confirm it matches how you actually run the server, and replace the
       `CONTACT_EMAIL` placeholder at the top with a monitored address.
 
-You still need to:
+- [x] **Screenshots** — pre-generated App Store sets in
+      `appstore/screenshots/` (6.9" and 6.7", from the seeded demo world);
+      regenerate with `scripts/appstore-screenshots.cjs`
+- [x] **Listing copy & questionnaire answers** — name/subtitle/description/
+      keywords, App Privacy answers, and App Review notes are all drafted in
+      `docs/APPSTORE.md`, ready to paste
+- [x] **Export compliance** — `ITSAppUsesNonExemptEncryption=false` is set in
+      Info.plist (standard HTTPS only), so uploads skip the encryption prompt
+- [x] **TestFlight upload without a Mac** —
+      `.github/workflows/ios-testflight.yml` (setup in `docs/APPSTORE.md`)
+
+You still need to (in order):
 
 - [ ] Apple Developer Program membership ($99/yr)
-- [ ] Fill in the **App Privacy** questionnaire (collected: account info
-      [username], user content [workouts, photos, comments]; not used for
-      tracking)
-- [ ] Screenshots for 6.7" and 6.5" iPhones (run in the simulator and use
-      Xcode's screenshot tool; the seeded demo world makes good material)
-- [ ] A **demo account** for App Review (register one on your production
-      server and put the credentials in the review notes)
-- [ ] Archive → Distribute via Xcode or Transporter, test through TestFlight,
-      then submit
+- [ ] Host the API (step 1 above — `fly.toml` / `render.yaml` make it quick)
+- [ ] Create the app record in App Store Connect, add the four Apple secrets
+      to GitHub, and run the **iOS → TestFlight** workflow (or archive locally
+      in Xcode if you have a Mac)
+- [ ] A **demo account** for App Review on your production server (run
+      `npm run seed` there once, or register one and log a few sessions), then
+      paste the listing from `docs/APPSTORE.md`, attach the screenshots, test
+      via TestFlight, and submit
 
 ## Notes & limitations
 

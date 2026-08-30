@@ -1,0 +1,22 @@
+# Render.com blueprint for the Chalk API: New → Blueprint → point at this repo.
+# Uses the repo Dockerfile; data (SQLite + uploads) lives on a persistent disk.
+# Render terminates TLS and sets PORT itself; the server reads both from env.
+services:
+  - type: web
+    name: chalk-api
+    runtime: docker
+    plan: starter # disks require a paid instance; free tier has no persistent disk
+    healthCheckPath: /api/health
+    envVars:
+      - key: DB_PATH
+        value: /data/chalk.db
+      - key: UPLOADS_DIR
+        value: /data/uploads
+      - key: TRUST_PROXY
+        value: "1"
+      - key: COOKIE_SECURE
+        value: "1"
+    disk:
+      name: chalk-data
+      mountPath: /data
+      sizeGB: 1
